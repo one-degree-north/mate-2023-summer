@@ -32,13 +32,3 @@ class MainWindow(QMainWindow):
         
         if e.key() == Qt.Key.Key_W:
             print("w released")
-
-
-if __name__ == "__main__":
-    app = QApplication([])
-    
-    window = MainWindow()
-    window.show()
-
-    app.exec()
-
