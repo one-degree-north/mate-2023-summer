@@ -89,16 +89,17 @@ def update_pwm(data):
     if len == 12:
         pwm_vals = struct.unpack(">HHHHHH", data)
         for i in range(6):
-            pwms[i].duty_cycle = us_to_duty_cycle(pwm_vals[i])
+            # pwms[i].duty_cycle = us_to_duty_cycle(pwm_vals[i])
+            pwms[i].duty_cycle = pwm_vals[i]
             # struct.pack()
 
 def send_hello(Serial):
-    Serial.write(bytes([HEADER, 0x00, 0x00, 5, 'h', 'e', 'l', 'l', 'o', FOOTER]))
+    Serial.write(bytes([HEADER, 0x00, 0x00, 5, 0x48, 0x45, 'l', 'l', 'o', FOOTER]))  #hello
 
 # FUNNY
 def parse_packet(packet):
     if packet.cmd == 0x00:
-        pass
+        send_hello()
     elif packet.cmd == 0x18:
         update_pwm(packet.data)
 

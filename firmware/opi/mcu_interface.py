@@ -104,18 +104,37 @@ class MCUInterface:
                     self.read_packet.clear()
             time.sleep(self.write_delay)
 
+    def float_to_duty_cycle(self, thrust):  # turns a float (-1 to 1) to the given duty cycle (uint 16)
+        # max value = 1/10 of cycle (20 millisecond, 2 millisecond) = 6553 (0x)
+        # mid value = 1/15 of cycle = 4369
+        # min value = 1/20 of cycle (20 millisecond, 1 millisecond) = 3277
+        return int((6553-3277)/2*thrust + 3277)
+
     # parse data, stores data needed on opi and sends data to surface
     def _parse(self, packet):
+        if self.debug:
+            # print(f"received data: {packet.to_bytes}")
+            print(f"received packet cmd: {packet.cmd}, len: {packet.len}, bytes: {packet.to_bytes()}")
+            if packet.cmd == 0x1A:
+                curr_thrusters = struct.unpack("<HHHHHHHH", bytes(packet.data))
+                print(f"thrusts: {curr_thrusters}")
+            if packet.cmd == 0x2A:
+                curr_servos = struct.unpack("<HH", bytes(packet.data))
+                print(f"servos: {curr_servos}")
         # store data needed
 
         # forward to network
+        
         pkt_len = len(packet.to_bytes())
         self.server.send_data(struct.pack("!" + "B"*(pkt_len-2), *struct.unpack("<" + "B"*(pkt_len-2), bytes(packet.to_bytes_network()))))    # transform little endian into network endianess
 
     def set_thrusters(self, thrusts):
+        u16_thrusts = []
+        for i in range(len(thrusts)):
+            u16_thrusts.append(self.float_to_duty_cycle(thrusts[i]))
         if self.debug:
-            print(f"setting thrusts {thrusts}")
-        self._write_packet(0x18, 0x0F, struct.pack(">HHHHHHHH", *thrusts))
+            print(f"setting thrusts {thrusts}, with {u16_thrusts}")  
+        self._write_packet(0x18, 0x0F, struct.pack(">HHHHHH", *u16_thrusts))
 
     def set_servos(self, vals):
         print(f"setting thrusts {thrusts}")
@@ -130,41 +149,19 @@ class MCUInterface:
     def get_servos(self):
         self._write_packet(0x2A, 0x2F, bytes([]))
 
-    def _debug_start(self):
-        self.debug_thread = threading.Thread(target=self._debug_read_thread, daemon=True)
-        self.debug_thread.start()
-
-    def _debug_read_thread(self):
-        while True:
-            new_bytes = self.ser.read_all()
-            for byte in new_bytes:
-                self.read_packet.add_byte(byte)
-                if self.read_packet.is_complete():
-                    self._debug_parse(self.read_packet)  # read is LITTLE ENDIAN!!!!
-                    self.read_packet.clear()
-    
-    def _debug_parse(self, packet):
-        print(f"received packet cmd: {packet.cmd}, len: {packet.len}, bytes: {packet.to_bytes()}")
-        if packet.cmd == 0x1A:
-            curr_thrusters = struct.unpack("<HHHHHHHH", bytes(packet.data))
-            print(f"thrusts: {curr_thrusters}")
-        if packet.cmd == 0x2A:
-            curr_servos = struct.unpack("<HH", bytes(packet.data))
-            print(f"servos: {curr_servos}")
-
 if __name__ == "__main__":
-    interface = MCUInterface("/dev/ttyS1")
-    interface._debug_start()
+    interface = MCUInterface("/dev/ttyS1", debug=True)
+    interface.start()
     while True:
         val = input("input type > ")
         if val == "all":
             t = int(input("microseconds: "))
-            thrusts = [t, t, t, t, t, t, t, t]
+            thrusts = [t, t, t, t, t, t]
             interface.set_thrusters(thrusts)
         if val == "st":
             thruster = int(input("thruster: "))
             microseconds = int(input("microseconds: "))
-            thrusts = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+            thrusts = [0, 0, 0, 0, 0, 0]
             thrusts[thruster] = microseconds
             interface.set_thrusters(thrusts)
         if val == "sv":
