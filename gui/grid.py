@@ -21,10 +21,6 @@ class Grid(QWidget):
 
         self.setLayout(self.layout)
 
-    def camera_size(self):
-        print(self.cam_1.width())
-        print(self.cam_2.width())
-
 class Camera(QLabel):
     def __init__(self, parent, port):
         super().__init__("Connecting...")

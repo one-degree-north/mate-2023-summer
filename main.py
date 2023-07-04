@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QApplication
 import yaml
 
 from gui.gui import MainWindow
+from comms.comms import Comms
 
 if __name__ == "__main__":
     with open("settings.yaml") as f:
@@ -12,7 +13,7 @@ if __name__ == "__main__":
 
     app = QApplication([])
     
-    window = MainWindow(settings["gui"])
+    window = MainWindow(settings["gui"], Comms() if not settings["debug"] else None)
     window.show()
 
     print("GUI successfully initialized")

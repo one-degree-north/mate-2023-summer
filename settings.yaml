@@ -1,2 +1,4 @@
+debug: true
+
 gui:
   cam-width: 660
