@@ -68,37 +68,22 @@ class OPiServer:
     #parse data from surface client
     def _parse_data(self, data):
         cmd = data[0]
-        if cmd == 0x00: # manual move
-            thrusts = struct.unpack("!fff", data[1:])
-            print(f"manually moving with {thrusts}")
-            self.thruster_control.set_pos_manual(list(thrusts))
-        elif cmd == 0x01: # move velocity
-            velocities = struct.unpack("!fff", data[1:])
-            self.thruster_control.set_pos_target_vel(list(velocities))
-        elif cmd == 0x02: # hold
-            self.thruster_control.set_pos_hold()
-        elif cmd == 0x03:   # pos drift
-            self.thruster_control.set_pos_drift()
-        elif cmd == 0x04:
-            thrusts = struct.unpack("!fff", data[1:])
-            self.thruster_control.set_rot_manual(list(thrusts))
-        elif cmd == 0x05: # move rotational velocity
-            velocities = struct.unpack("!fff", data[1:])
-            self.thruster_control.set_rot_vel(list(velocities))
-        elif cmd == 0x06: # goto rotational angle
-            angle = struct.unpack("!fff", data[1:])
-            self.thruster_control.set_rot_angle(list(angle))
-        elif cmd == 0x07: # drift
-            self.thruster_control.set_rot_drift()
-        elif cmd == 0x08:
-            self.thruster_control.set_rot_hold()
-        elif cmd == 0x10:   # test conneciton
+
+        if cmd == 0x00: # test connection
             self.interface.test_connection()
-        elif cmd == 0x11:   # get thruster positions
-            self.interface.get_thrusters()
-        elif cmd == 0x20:   # move servos
-            self.interface.set_servos(struct.unpack("!HH", data[1:]))
-        elif cmd == 0x30:   # turn flashlight on / off
+        elif cmd == 0x01: # echo
+            if len(data) > 0:
+                self.interface.echo(data[1:])
+        elif cmd == 0x10:   # autoreport 
+            pass
+        elif cmd == 0x20:   # set manual thrust
+            if len(data) == 25:
+                trans = struct.unpack("!fff", *data[1:13])
+                rot = struct.unpack("!fff", *data[13:25])
+                self.thruster_control.set_thrust(trans, rot)
+        elif cmd == 0x21:   # set pid thrust
+            pass
+        elif cmd == 0x22:   # set pid consts
             pass
     
     #data is little endian

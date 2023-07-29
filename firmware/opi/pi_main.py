@@ -17,9 +17,16 @@ def main(stop_event, use_stop_event=False, debug=False):
     # create components
     addr = config['ip_addr']
     serial_port = config['serial_port']
-    thrust_controller = ThrusterController(move_delta_time=config['thruster_move_delta'], stop_event=stop_event, use_stop_event=use_stop_event, debug=not not config['debug'], passthrough=True)
+    bno_data = {
+        "accel":[0, 0, 0],
+        "gyro":[0, 0, 0],
+        "eul":[0, 0, 0],
+        "lin":[0, 0, 0],
+        "quat":[0, 0, 0, 0]
+    }
+    thrust_controller = ThrusterController(bno_data=bno_data, move_delta_time=config['thruster_move_delta'], stop_event=stop_event, use_stop_event=use_stop_event, debug=not not config['debug'], passthrough=True, )
     server = OPiServer(server_address=(addr, config['udp_port']), stop_event=stop_event, use_stop_event=use_stop_event)
-    interface = MCUInterface(serial_port=serial_port, stop_event=stop_event, use_stop_event=use_stop_event)
+    interface = MCUInterface(serial_port=serial_port, stop_event=stop_event, use_stop_event=use_stop_event, bno_data=bno_data)
 
     # resolve dependencies between components
     thrust_controller.set_interface(interface)

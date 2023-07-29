@@ -9,7 +9,7 @@ from pathlib import Path
 path = Path(sys.path[0])
 sys.path.insert(1, str((path.parent.parent).absolute()))
 
-from bno_lib.bno import *
+# from bno_lib.bno import *
 
 
 @dataclass
