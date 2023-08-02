@@ -28,46 +28,52 @@ class PID:
         self.i_const = i_const
         self.d_const = d_const
 
-class OpiMove():
-    def __init__(self, pid=True, data=None):
+class PIDMove():
+    def __init__(self, pid=True, data=None, data_lock=None):
         self.pid_en = pid
         self.data = data
         self.target_velocity=[0, 0, 0]
         self.manual_thrust = [0, 0, 0]
         self.pids = [PID(), PID(), PID()]
+        self.data_lock = data_lock
 
     def on_tick(self):
         if self.pid_en:
+            self.data_lock.acquire()
             for pid in self.pids:
                 pid.on_tick()
+            self.data_lock.release()
         else:
             pass
+    
+    def set_target(self, target):
+        self.target_velocity = target
 
-    def set_target(self):
-        self.manual_thrust
-
-class OpiRotate():
-    def __init__(self, pid=True, data=None):
+class PIDRotate():
+    def __init__(self, pid=True, data=None, data_lock=None):
         self.pid_en = pid
         self.data = data
         self.target_velocity = [0, 0, 0]
-        self.pids = [PID(), PID(), PID()]
+        self.pids = [PID(), PID(0, 0, 0), PID()]   # roll, pitch, yaw (we cannot pitch :(  )
+        self.data_lock = data_lock
 
     def on_tick(self):
         if self.pid_en:
+            self.data_lock.acquire()
             for pid in self.pids:
                 pid.on_tick()
+            self.data_lock.release()
         else:
             pass
-
-    def set_target(self):
-        self.manual_thrust
+    
+    def set_target(self, target):
+        self.target_velocity=target
 
 class ThrusterController:
-    def __init__(self, move_delta_time=0.05, stop_event=None, use_stop_event=False, debug=False, passthrough=False, bno_data=None):
+    def __init__(self, move_delta_time=0.05, stop_event=None, use_stop_event=False, debug=False, passthrough=False, bno_data=None, data_lock=None):
         self.data=bno_data
-        self.pos_state = OpiMove()
-        self.rot_state = OpiRotate()
+        self.pos_state = PIDMove(data=self.data, data_lock=data_lock)  # for PID
+        self.rot_state = PIDRotate(data=self.data, data_lock=data_lock)    # for PID
         # self.move_delta_time = move_delta_time
         
         # move time timers
@@ -89,8 +95,8 @@ class ThrusterController:
 
         # constants for adjusting maximum change in thrust
         self.max_delta_current_ms = 0.01
-        self.target_thrust = [0, 0, 0, 0, 0, 0]
-        self.current_thrust = [0, 0, 0, 0, 0, 0]
+        self.target_thrust = [0, 0, 0, 0, 0, 0] # target thrust in axis (forward, side, up, pitch, roll, yaw)
+        self.current_thrust = [0, 0, 0, 0, 0, 0] # current thrust in axis
 
         self.ta = [0,1,2,3,4,5]    # thruster pins that match with configuration
         self.reversed = [False, True, True, True, False, True, True, True]  # reversed thrusters
@@ -162,23 +168,23 @@ class ThrusterController:
                 self.en_move_event.clear()
                 break
 
-            move_shit = False
             if self.pid_en: # update thrusts based on PID
                 if (time.time()-self.pid_past_time) > self.pid_delay:
                     self.thrust_in_position = False
                     pos_thrust = self.pos_state.on_tick()
                     rot_thrust = self.rot_state.on_tick()
                     total_thrust = self.calc_move(pos_thrust, rot_thrust)
+                    self.target_thrust = total_thrust
                     self.pid_past_time = time.time()
                     # move with all thrusts
                     if self.debug:
                         print(f"writing thrust: {total_thrust}")
                         print(f"elapsed: {(time.time() - t)*1000.0:.4f}ms")
                         t = time.time()
-            # print((time.time()-self.current_past_time) > self.current_delay)
-            # print(self.thrust_in_position)
+
             if (time.time()-self.current_past_time) > self.current_delay and not self.thrust_in_position:
-                print("----")
+                if self.debug:
+                    print("----")
                 # adjust for maximum change in current per second allowed
                 d_thrusts = [0, 0, 0, 0, 0, 0]
                 d_current = [0, 0, 0, 0, 0, 0]
@@ -196,7 +202,7 @@ class ThrusterController:
                     self.current_thrust = self.target_thrust
                     print("THRUST SET TRUE!!!")
                     self.thrust_in_position = True
-                # have current thrust change proportionally to the change in current (better way would be thrust, but I'm too lazy right now)
+                # have current thrust change proportionally to the change in current (better way would be change proportional to force, but I'm too lazy right now)
                 else:
                     percent_dt_currents = []
                     for current in d_current:
@@ -214,13 +220,10 @@ class ThrusterController:
                             else:
                                 self.current_thrust[i] += thrust_change
 
-                        # if self.debug:
-                        #     print(f"thrust: {self.current_to_thrust(percent_dt_currents[i] *total_d_current)} from current {percent_dt_currents[i] *total_d_current}")
                 if self.debug:
                     print(f"current thrust: {self.current_thrust}")
                     print(f"target thrust: {self.target_thrust}")
                 self.mcu_interface.set_thrusters(self.calc_move(self.current_thrust[0:3], self.current_thrust[3:]))
-                print("HUH")
                 self.current_past_time = time.time()
             # sleep the shortest delay (should mostly be fine as our time doesn't have to be that precise)
             lowest_delay = self.current_delay-self.current_past_time
@@ -230,13 +233,13 @@ class ThrusterController:
                 lowest_delay = 0
             time.sleep(lowest_delay)
 
-    def manual_move(self, trans=[0, 0, 0], rot=[0, 0, 0]):
-        # thrusts = self.calc_move(self, trans, rot)
-        # self.mcu_interface.set_thrusters(thrusts)
+    def manual_move(self, trans=None, rot=None):
         if self.debug:
-            print(f"target thrust set to {[*trans,*rot]}")
-        self.target_thrust = [*trans,*rot]
-        self.thrust_in_position=False
+            print(f"MANUAL MOVE: target thrust set to {[*trans,*rot]}")
+        if trans != None:
+            self.target_thrust = [*trans, self.target_thrust[3:6]]
+        if rot != None:
+            self.target_thrust = [self.target_thrust[0:3], *rot]
 
     # translates moves (-1 to 1) to microseconds
     def calc_move(self, pos_thrust, rot_thrust):
@@ -280,20 +283,24 @@ class ThrusterController:
         
         return total_thrust
 
-    def set_thrust(self, trans=[0, 0, 0], rot=[0, 0, 0], pid=False):
+    def set_thrust(self, trans=None, rot=None, pid=False):  # trans and rot are arrays of 3 floats
         if pid:
-            if not self.pid_en:
-                # enable pid loop
-                self.start_loop()
-            self.pos_state.set_target(trans)
-            self.rot_state.set_target(rot)
+            # if not self.pid_en:
+            #     # enable pid loop
+            #     self.start_loop()
+            self.pid_en = True
+            if self.trans != None:
+                self.pos_state.set_target(trans)
+            if self.rot != None:
+                self.rot_state.set_target(rot)
         else:
-            if self.pid_en:
+            # if self.pid_en:
+            #     # disable pid loop
+            #     self.en_move_event.set()
+            #     while self.en_move_event.is_set():  # there should be a better way...
+            #         pass
                 # disable pid loop
-                self.en_move_event.set()
-                while self.en_move_event.is_set():  # there should be a better way...
-                    pass
-                # disable pid loop
+            self.pid_en = False
             self.manual_move(trans=trans, rot=rot)
             
 

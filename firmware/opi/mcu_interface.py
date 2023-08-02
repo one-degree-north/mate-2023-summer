@@ -69,7 +69,7 @@ class Packet:
         return f"{self.cmd} {self.param} {self.len} {self.data} {self.curr_size} "
 
 class MCUInterface:
-    def __init__(self, serial_port="/dev/ttyACM0", stop_event=None, use_stop_event=False, debug=False, write_delay=0.05, bno_data=None):
+    def __init__(self, serial_port="/dev/ttyACM0", stop_event=None, use_stop_event=False, debug=False, write_delay=0.05, bno_data=None, data_lock=None):
         self.serial_port = serial_port
         # self.ser = serial.Serial(serial_port, 115200, dsrdtr=True, rtscts=True)
         self.init_serial()
@@ -85,6 +85,7 @@ class MCUInterface:
         self.use_stop_event=use_stop_event
 
         self.bno_data = bno_data
+        self.data_lock = data_lock
     
     def init_serial(self):
         if 'ser' in dir(self):
@@ -172,19 +173,26 @@ class MCUInterface:
         # store data needed
         if packet.cmd == 0x10:  # BNO DATA
             if packet.param == 0x00:    #quat
+                self.data_lock.acquire()
                 data = struct.unpack("<ffff", bytes(packet.data))
                 self.bno_data["quat"] = data
+                self.data_lock.release()
             elif packet.param == 0x01:  #euler
+                self.data_lock.acquire()
                 data = struct.unpack("<fff", bytes(packet.data))
                 self.bno_data["eul"] = data
+                self.data_lock.release()
             elif packet.param == 0x02:  #lin
+                self.data_lock.acquire()
                 data = struct.unpack("<fff", bytes(packet.data))
                 self.bno_data["lin"] = data
+                self.data_lock.release()
             elif packet.param == 0x03:  #gyro
+                self.data_lock.acquire()
                 data = struct.unpack("<fff", bytes(packet.data))
                 self.bno_data["gyro"] = data
+                self.data_lock.release()
         # forward to network
-        
         pkt_len = len(packet.to_bytes())
         if not self.debug:
             self.server.send_data(struct.pack("!" + "B"*(pkt_len-2), *struct.unpack("<" + "B"*(pkt_len-2), bytes(packet.to_bytes_network()))))    # transform little endian into network endianess
@@ -226,7 +234,8 @@ if __name__ == "__main__":
         "lin":[0, 0, 0],
         "quat":[0, 0, 0, 0]
     }
-    interface = MCUInterface("/dev/ttyACM0", debug=True, bno_data=bno_data)
+    data_lock=threading.Lock()
+    interface = MCUInterface("/dev/ttyACM0", debug=True, bno_data=bno_data,data_lock=data_lock)
     interface.start()
     while True:
         val = input("input type > ")

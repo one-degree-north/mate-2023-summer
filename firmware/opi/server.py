@@ -40,7 +40,8 @@ class OPiServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(self.server_address)
         self.self_addr = self.server_address
-        print(f"server set up at {self.server_address}")
+        if self.debug:
+            print(f"server set up at {self.server_address}")
         self.server_thread.start()
 
     # read and write data to and from surface client
@@ -51,7 +52,8 @@ class OPiServer:
                     break
             r, w, x = select.select([self.sock], [self.sock], [self.sock])
             for sock in r:  #ready to read!
-                print("attempting to read network data")
+                if self.debug:
+                    print("attempting to read network data")
                 data, address = sock.recvfrom(2048)
                 if address != self.client_addr: #client switched address (something wrong happened)
                     self.client_addr = address
@@ -59,11 +61,13 @@ class OPiServer:
             
             for sock in w:  #ready to write!
                 if not self.out_queue.empty() and self.connected:
-                    print(f"attempting to write to {self.client_addr}")
+                    if self.debug:
+                        print(f"attempting to write to {self.client_addr}")
                     sock.sendto(self.out_queue.get(), self.client_addr)
             
             for sock in x:  #exception 8^(. Create new socket and try to connect again.
-                print("exception apparently occured")
+                if self.debug:
+                    print("exception apparently occured")
     
     #parse data from surface client
     def _parse_data(self, data):
@@ -74,16 +78,21 @@ class OPiServer:
         elif cmd == 0x01: # echo
             if len(data) > 0:
                 self.interface.echo(data[1:])
-        elif cmd == 0x10:   # autoreport 
-            pass
+        elif cmd == 0x10:   # first connection (just to get addr)
+            print("client connected!")
         elif cmd == 0x20:   # set manual thrust
             if len(data) == 25:
                 trans = struct.unpack("!fff", *data[1:13])
                 rot = struct.unpack("!fff", *data[13:25])
-                self.thruster_control.set_thrust(trans, rot)
+                self.thruster_control.set_thrust(trans=trans, rot=rot, pid=False)
         elif cmd == 0x21:   # set pid thrust
+            if len(data) == 25:
+                trans = struct.unpack("!fff", *data[1:13])
+                rot = struct.unpack("!fff", *data[13:25])
+                self.thruster_control.set_thrust(trans=trans, rot=rot, pid=True)
+        elif cmd == 0x22:   # set manual pos
             pass
-        elif cmd == 0x22:   # set pid consts
+        elif cmd == 0x30:
             pass
     
     #data is little endian
@@ -91,7 +100,7 @@ class OPiServer:
         self.out_queue.put(data)
     
     def send_confirmation(self):
-        self.out_queue.put(struct.pack("Q"))
+        self.out_queue.put(struct.pack("!c", bytes([0x00])))
 
     def send_thruster_positions(self):
         pass
@@ -103,7 +112,7 @@ class OPiServer:
         pass
 
     def send_sens_data(self, param, values):
-        self.out_queue.put(struct.pack("!" + "B"*(3+len(values)), 0x33, param, len(values), *values))
+        self.out_queue.put(struct.pack("!" + "c"*(3+len(values)), 0x33, param, len(values), *values))
 
 if __name__ == "__main__":
     pass
