@@ -243,6 +243,9 @@ if __name__ == "__main__":
                 comms.set_manual_thrust([0, 0.2, 0, 0, 0, 0])
             case 'tu':
                 comms.set_manual_thrust([0, 0, 0.2, 0, 0, 0])
+            case 'all':
+                val = float(input(">"))
+                comms.set_manual_thrust([val, val, val, val, val, val])
             case 'sv':
                 comms.move_servo(int(input("1: ")), int(input("2: ")))
             case 'on':

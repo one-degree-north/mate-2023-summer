@@ -78,8 +78,8 @@ class ThrusterController:
         
         # move time timers
         self.pid_delay = 0.05
-        self.pid_past_time = 0   
-        self.current_delay = 0.01
+        self.pid_past_time = 0
+        self.current_delay = 0.05
         self.current_past_time = 0
         self.thrust_in_position = False    # when true, disables current_timer
 
@@ -200,7 +200,8 @@ class ThrusterController:
                 # check if we can just set current thrust to total thrust
                 if total_d_current/self.current_delay <= self.max_delta_current_ms or total_d_current == 0:
                     self.current_thrust = self.target_thrust
-                    print("THRUST SET TRUE!!!")
+                    if self.debug:
+                        print("THRUST SET TRUE!!!")
                     self.thrust_in_position = True
                 # have current thrust change proportionally to the change in current (better way would be change proportional to force, but I'm too lazy right now)
                 else:
@@ -237,9 +238,10 @@ class ThrusterController:
         if self.debug:
             print(f"MANUAL MOVE: target thrust set to {[*trans,*rot]}")
         if trans != None:
-            self.target_thrust = [*trans, self.target_thrust[3:6]]
+            self.target_thrust = [*trans, *self.target_thrust[3:6]]
         if rot != None:
-            self.target_thrust = [self.target_thrust[0:3], *rot]
+            self.target_thrust = [*self.target_thrust[0:3], *rot]
+        self.thrust_in_position = False
 
     # translates moves (-1 to 1) to microseconds
     def calc_move(self, pos_thrust, rot_thrust):

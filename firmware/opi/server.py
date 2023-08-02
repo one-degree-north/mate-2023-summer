@@ -82,13 +82,13 @@ class OPiServer:
             print("client connected!")
         elif cmd == 0x20:   # set manual thrust
             if len(data) == 25:
-                trans = struct.unpack("!fff", *data[1:13])
-                rot = struct.unpack("!fff", *data[13:25])
+                trans = struct.unpack("!fff", data[1:13])
+                rot = struct.unpack("!fff", data[13:25])
                 self.thruster_control.set_thrust(trans=trans, rot=rot, pid=False)
         elif cmd == 0x21:   # set pid thrust
             if len(data) == 25:
-                trans = struct.unpack("!fff", *data[1:13])
-                rot = struct.unpack("!fff", *data[13:25])
+                trans = struct.unpack("!fff", data[1:13])
+                rot = struct.unpack("!fff", data[13:25])
                 self.thruster_control.set_thrust(trans=trans, rot=rot, pid=True)
         elif cmd == 0x22:   # set manual pos
             pass

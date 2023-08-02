@@ -82,7 +82,7 @@ class rp2040:
         self.pwm_pins = [board.D13, board.D12, board.D24, board.D25, board.SCK, board.MOSI]
         self.pwms = []
         # Serial = usb_cdc.enable(console=False, data=True)
-        self.serial = usb_cdc.console
+        self.serial = usb_cdc.data
         i2c = board.I2C()
         self.bno = adafruit_bno055.BNO055_I2C(i2c)
 
